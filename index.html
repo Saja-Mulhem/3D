@@ -1,0 +1,1751 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام الري الذكي - محاكاة Arduino</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a1628 0%, #1a2a4a 50%, #0d1f3c 100%);
+            overflow: hidden;
+            color: #fff;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        .ui-overlay {
+            position: fixed;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .ui-overlay * {
+            pointer-events: auto;
+        }
+
+        /* Header */
+        .header {
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(180deg, rgba(10, 22, 40, 0.95) 0%, rgba(10, 22, 40, 0) 100%);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #00ff88, #00cc6a);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #00ff88, #00d4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo span {
+            font-size: 0.85rem;
+            color: #8899aa;
+        }
+
+        /* Status Panel */
+        .status-panel {
+            top: 100px;
+            right: 20px;
+            width: 320px;
+            background: rgba(15, 30, 50, 0.95);
+            border-radius: 16px;
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .panel-header {
+            padding: 15px 20px;
+            background: linear-gradient(90deg, rgba(0, 255, 136, 0.1), rgba(0, 212, 255, 0.1));
+            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-header h3 {
+            font-size: 1rem;
+            color: #00ff88;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #00ff88;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 10px #00ff88; }
+            50% { opacity: 0.5; box-shadow: 0 0 5px #00ff88; }
+        }
+
+        .panel-content {
+            padding: 20px;
+        }
+
+        .sensor-reading {
+            margin-bottom: 20px;
+        }
+
+        .sensor-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .sensor-label span {
+            font-size: 0.9rem;
+            color: #8899aa;
+        }
+
+        .sensor-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #00d4ff;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease, background 0.3s ease;
+        }
+
+        .moisture-fill {
+            background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77);
+        }
+
+        .water-fill {
+            background: linear-gradient(90deg, #4dabf7, #00d4ff);
+        }
+
+        /* System Status */
+        .system-status {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+        }
+
+        .status-item .label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #aabbcc;
+        }
+
+        .status-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .pump-icon {
+            background: rgba(255, 107, 107, 0.2);
+        }
+
+        .pump-icon.active {
+            background: rgba(0, 255, 136, 0.2);
+            animation: glow-green 1s infinite;
+        }
+
+        .led-icon {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff4444;
+            box-shadow: 0 0 10px #ff4444;
+        }
+
+        .led-icon.green {
+            background: #00ff88;
+            box-shadow: 0 0 15px #00ff88;
+        }
+
+        @keyframes glow-green {
+            0%, 100% { box-shadow: 0 0 10px rgba(0, 255, 136, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(0, 255, 136, 0.8); }
+        }
+
+        /* Controls Panel */
+        .controls-panel {
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 30, 50, 0.95);
+            border-radius: 16px;
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            padding: 15px 25px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-auto {
+            background: linear-gradient(135deg, #00ff88, #00cc6a);
+            color: #0a1628;
+        }
+
+        .btn-manual {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .threshold-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 15px;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .threshold-control label {
+            font-size: 0.85rem;
+            color: #8899aa;
+        }
+
+        .threshold-control input {
+            width: 80px;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #00d4ff;
+            font-size: 0.95rem;
+            text-align: center;
+        }
+
+        /* Info Cards */
+        .info-cards {
+            bottom: 100px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .info-card {
+            background: rgba(15, 30, 50, 0.9);
+            border-radius: 12px;
+            padding: 15px 20px;
+            border: 1px solid rgba(0, 255, 136, 0.15);
+            backdrop-filter: blur(10px);
+            min-width: 200px;
+        }
+
+        .info-card h4 {
+            font-size: 0.8rem;
+            color: #00ff88;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-card p {
+            font-size: 0.85rem;
+            color: #8899aa;
+            line-height: 1.5;
+        }
+
+        .info-card .value {
+            color: #00d4ff;
+            font-weight: 600;
+        }
+
+        /* Component Legend */
+        .legend {
+            top: 100px;
+            left: 20px;
+            background: rgba(15, 30, 50, 0.9);
+            border-radius: 12px;
+            padding: 15px 20px;
+            border: 1px solid rgba(0, 255, 136, 0.15);
+            backdrop-filter: blur(10px);
+        }
+
+        .legend h4 {
+            font-size: 0.85rem;
+            color: #00ff88;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 0;
+            font-size: 0.8rem;
+            color: #aabbcc;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        /* Loading Screen */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0a1628;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #00ff88, #00d4ff);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin-bottom: 30px;
+            animation: float 2s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .loading-text {
+            font-size: 1.2rem;
+            color: #00ff88;
+            margin-bottom: 20px;
+        }
+
+        .loading-bar {
+            width: 200px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .loading-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00d4ff);
+            animation: loading 1.5s ease-in-out infinite;
+        }
+
+        @keyframes loading {
+            0% { width: 0%; margin-left: 0; }
+            50% { width: 70%; margin-left: 15%; }
+            100% { width: 0%; margin-left: 100%; }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .status-panel {
+                width: 280px;
+                right: 10px;
+            }
+
+            .controls-panel {
+                flex-wrap: wrap;
+                justify-content: center;
+                padding: 15px;
+            }
+
+            .threshold-control {
+                border-right: none;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+                padding-top: 10px;
+                width: 100%;
+                justify-content: center;
+            }
+
+            .info-cards, .legend {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-logo">💧</div>
+        <div class="loading-text">جاري تحميل المحاكاة...</div>
+        <div class="loading-bar">
+            <div class="loading-progress"></div>
+        </div>
+    </div>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlays -->
+    <div class="ui-overlay header">
+        <div class="logo">
+            <div class="logo-icon">🌱</div>
+            <div>
+                <h1>نظام الري الذكي</h1>
+                <span>Smart Irrigation System</span>
+            </div>
+        </div>
+        <div style="display: flex; gap: 15px;">
+            <div class="info-card" style="min-width: auto;">
+                <h4>⏱️ الوقت</h4>
+                <p id="systemTime" style="font-size: 1.1rem; color: #00d4ff;">00:00:00</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="ui-overlay status-panel">
+        <div class="panel-header">
+            <div class="status-indicator"></div>
+            <h3>📊 قراءة الحساسات</h3>
+        </div>
+        <div class="panel-content">
+            <div class="sensor-reading">
+                <div class="sensor-label">
+                    <span>💧 رطوبة التربة</span>
+                    <span class="sensor-value" id="moistureValue">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill moisture-fill" id="moistureBar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="sensor-reading">
+                <div class="sensor-label">
+                    <span>📏 مستوى الماء</span>
+                    <span class="sensor-value" id="waterValue">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill water-fill" id="waterBar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="system-status">
+                <div class="status-item">
+                    <span class="label">
+                        <span class="status-icon pump-icon" id="pumpIcon">🚰</span>
+                        المضخة
+                    </span>
+                    <span id="pumpStatus" style="color: #ff6b6b; font-weight: 600;">متوقفة</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">
+                        <div class="led-icon" id="greenLed"></div>
+                        LED أخضر
+                    </span>
+                    <span id="greenLedStatus" style="color: #8899aa;">مطفأ</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">
+                        <div class="led-icon" id="redLed" style="background: #ff4444; box-shadow: 0 0 10px #ff4444;"></div>
+                        LED أحمر
+                    </span>
+                    <span id="redLedStatus" style="color: #00ff88;">مضاء</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="ui-overlay legend">
+        <h4>🎨 LEGEND</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #00ff88;"></div>
+            <span>توصيل 5V</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #000000;"></div>
+            <span>GND</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #ff6b6b;"></div>
+            <span>إشارة تحكم</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #00d4ff;"></div>
+            <span>إشارة حساس</span>
+        </div>
+    </div>
+
+    <div class="ui-overlay info-cards">
+        <div class="info-card">
+            <h4>🌿 الوحدة الزراعية</h4>
+            <p>نبات محمي يعمل على:</p>
+            <p>• تنقية الهواء</p>
+            <p>• إنتاج الأكسجين</p>
+        </div>
+        <div class="info-card">
+            <h4>⚙️ منطق النظام</h4>
+            <p>تشغيل المضخة عندما:</p>
+            <p>• رطوبة التربة < <span class="value" id="thresholdDisplay">35</span>%</p>
+            <p>• مستوى الماء > 20%</p>
+        </div>
+    </div>
+
+    <div class="ui-overlay controls-panel">
+        <button class="control-btn btn-auto" id="autoBtn">
+            <span>🤖</span>
+            وضع تلقائي
+        </button>
+        <button class="control-btn btn-manual" id="manualBtn">
+            <span>👆</span>
+            وضع يدوي
+        </button>
+        <div class="threshold-control">
+            <label>حد الرطوبة:</label>
+            <input type="number" id="thresholdInput" value="35" min="0" max="100">
+            <span>%</span>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Global Variables
+        let scene, camera, renderer, controls;
+        let arduino, breadboard, pump, soilSensor, ultrasonicSensor, relay;
+        let greenLed, redLed;
+        let waterParticles = [];
+        let waterDrops = [];
+        let moisture = 30;
+        let waterLevel = 80;
+        let threshold = 35;
+        let pumpRunning = false;
+        let autoMode = true;
+        let clock = new THREE.Clock();
+
+        // Initialize Scene
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a1628);
+            scene.fog = new THREE.Fog(0x0a1628, 15, 35);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(8, 6, 10);
+            camera.lookAt(0, 0, 0);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // Lights
+            setupLights();
+
+            // Create Scene Objects
+            createGround();
+            createTable();
+            createArduino();
+            createBreadboard();
+            createSensors();
+            createPump();
+            createRelay();
+            createLEDs();
+            createWires();
+            createPlant();
+            createWaterTank();
+            createWaterParticles();
+
+            // Orbit Controls (Manual Implementation)
+            setupControls();
+
+            // Event Listeners
+            setupEventListeners();
+
+            // Hide loading screen
+            setTimeout(() => {
+                document.getElementById('loadingScreen').classList.add('hidden');
+            }, 2000);
+
+            // Start Animation
+            animate();
+        }
+
+        function setupLights() {
+            // Ambient Light
+            const ambientLight = new THREE.AmbientLight(0x404060, 0.5);
+            scene.add(ambientLight);
+
+            // Main Directional Light
+            const mainLight = new THREE.DirectionalLight(0xffffff, 1);
+            mainLight.position.set(5, 10, 5);
+            mainLight.castShadow = true;
+            mainLight.shadow.mapSize.width = 2048;
+            mainLight.shadow.mapSize.height = 2048;
+            mainLight.shadow.camera.near = 0.5;
+            mainLight.shadow.camera.far = 50;
+            mainLight.shadow.camera.left = -15;
+            mainLight.shadow.camera.right = 15;
+            mainLight.shadow.camera.top = 15;
+            mainLight.shadow.camera.bottom = -15;
+            scene.add(mainLight);
+
+            // Fill Light
+            const fillLight = new THREE.DirectionalLight(0x00d4ff, 0.3);
+            fillLight.position.set(-5, 5, -5);
+            scene.add(fillLight);
+
+            // Rim Light
+            const rimLight = new THREE.DirectionalLight(0x00ff88, 0.2);
+            rimLight.position.set(0, 5, -10);
+            scene.add(rimLight);
+
+            // Point Light for Arduino glow
+            const arduinoGlow = new THREE.PointLight(0x00ff88, 0.5, 5);
+            arduinoGlow.position.set(0, 2, 0);
+            scene.add(arduinoGlow);
+        }
+
+        function createGround() {
+            // Ground Plane
+            const groundGeometry = new THREE.PlaneGeometry(50, 50);
+            const groundMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1a2a4a,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -0.5;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Grid Helper
+            const gridHelper = new THREE.GridHelper(20, 40, 0x00ff88, 0x1a3a5a);
+            gridHelper.position.y = -0.49;
+            scene.add(gridHelper);
+        }
+
+        function createTable() {
+            // Table Top
+            const tableGeometry = new THREE.BoxGeometry(12, 0.3, 8);
+            const tableMaterial = new THREE.MeshStandardMaterial({
+                color: 0x2a3a5a,
+                roughness: 0.3,
+                metalness: 0.1
+            });
+            const table = new THREE.Mesh(tableGeometry, tableMaterial);
+            table.position.y = -0.35;
+            table.castShadow = true;
+            table.receiveShadow = true;
+            scene.add(table);
+
+            // Table Legs
+            const legGeometry = new THREE.CylinderGeometry(0.15, 0.15, 3);
+            const legMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1a2a4a,
+                roughness: 0.5,
+                metalness: 0.3
+            });
+
+            const legPositions = [
+                [-5.5, -1.5, 3.5],
+                [5.5, -1.5, 3.5],
+                [-5.5, -1.5, -3.5],
+                [5.5, -1.5, -3.5]
+            ];
+
+            legPositions.forEach(pos => {
+                const leg = new THREE.Mesh(legGeometry, legMaterial);
+                leg.position.set(...pos);
+                leg.castShadow = true;
+                scene.add(leg);
+            });
+        }
+
+        function createArduino() {
+            arduino = new THREE.Group();
+
+            // PCB Board
+            const boardGeometry = new THREE.BoxGeometry(2.7, 0.08, 2);
+            const boardMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1a5c2e,
+                roughness: 0.4,
+                metalness: 0.2
+            });
+            const board = new THREE.Mesh(boardGeometry, boardMaterial);
+            board.castShadow = true;
+            arduino.add(board);
+
+            // USB Connector
+            const usbGeometry = new THREE.BoxGeometry(0.4, 0.15, 0.3);
+            const usbMaterial = new THREE.MeshStandardMaterial({
+                color: 0x333333,
+                roughness: 0.3,
+                metalness: 0.5
+            });
+            const usb = new THREE.Mesh(usbGeometry, usbMaterial);
+            usb.position.set(-1.1, 0.08, -0.7);
+            arduino.add(usb);
+
+            // Power Jack
+            const jackGeometry = new THREE.CylinderGeometry(0.12, 0.12, 0.2);
+            const jack = new THREE.Mesh(jackGeometry, usbMaterial);
+            jack.position.set(-1.1, 0.05, 0.7);
+            jack.rotation.x = Math.PI / 2;
+            arduino.add(jack);
+
+            // ATmega328 Chip
+            const chipGeometry = new THREE.BoxGeometry(0.5, 0.08, 0.5);
+            const chipMaterial = new THREE.MeshStandardMaterial({
+                color: 0x111111,
+                roughness: 0.3,
+                metalness: 0.3
+            });
+            const chip = new THREE.Mesh(chipGeometry, chipMaterial);
+            chip.position.set(0.3, 0.08, 0);
+            arduino.add(chip);
+
+            // Crystal Oscillator
+            const crystalGeometry = new THREE.BoxGeometry(0.15, 0.08, 0.08);
+            const crystalMaterial = new THREE.MeshStandardMaterial({
+                color: 0x440044,
+                roughness: 0.3,
+                metalness: 0.5,
+                emissive: 0x220022
+            });
+            const crystal = new THREE.Mesh(crystalGeometry, crystalMaterial);
+            crystal.position.set(0.8, 0.08, 0.3);
+            arduino.add(crystal);
+
+            // Pin Headers
+            const headerMaterial = new THREE.MeshStandardMaterial({
+                color: 0xcccccc,
+                roughness: 0.2,
+                metalness: 0.8
+            });
+
+            // Top Pins (Digital)
+            for (let i = 0; i < 14; i++) {
+                const pinGeometry = new THREE.BoxGeometry(0.08, 0.15, 0.08);
+                const pin = new THREE.Mesh(pinGeometry, headerMaterial);
+                pin.position.set(-1.1 + i * 0.15, 0.12, -0.85);
+                arduino.add(pin);
+
+                // Pin label
+                if (i === 7) {
+                    const labelGeometry = new THREE.PlaneGeometry(0.1, 0.02);
+                    const labelMaterial = new THREE.MeshBasicMaterial({
+                        color: 0xffffff,
+                        transparent: true,
+                        opacity: 0.5
+                    });
+                    const label = new THREE.Mesh(labelGeometry, labelMaterial);
+                    label.position.set(-1.1 + i * 0.15, 0.08, -0.78);
+                    label.rotation.x = -Math.PI / 2;
+                    arduino.add(label);
+                }
+            }
+
+            // Bottom Pins (Analog + Power)
+            for (let i = 0; i < 6; i++) {
+                const pinGeometry = new THREE.BoxGeometry(0.08, 0.15, 0.08);
+                const pin = new THREE.Mesh(pinGeometry, headerMaterial);
+                pin.position.set(-0.9 + i * 0.15, 0.12, 0.85);
+                arduino.add(pin);
+            }
+
+            // Power pins
+            for (let i = 0; i < 6; i++) {
+                const pinGeometry = new THREE.BoxGeometry(0.08, 0.15, 0.08);
+                const pin = new THREE.Mesh(pinGeometry, headerMaterial);
+                pin.position.set(0.3 + i * 0.15, 0.12, 0.85);
+                arduino.add(pin);
+            }
+
+            // LED indicators
+            const ledGeometry = new THREE.SphereGeometry(0.04, 16, 16);
+            const ledColors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00];
+            
+            ledColors.forEach((color, i) => {
+                const ledMaterial = new THREE.MeshStandardMaterial({
+                    color: color,
+                    emissive: color,
+                    emissiveIntensity: 0.5
+                });
+                const led = new THREE.Mesh(ledGeometry, ledMaterial);
+                led.position.set(-0.8 + i * 0.12, 0.1, -0.6);
+                arduino.add(led);
+            });
+
+            // Arduino Logo (Text plane)
+            const logoGeometry = new THREE.PlaneGeometry(0.6, 0.15);
+            const logoMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00ff88,
+                transparent: true,
+                opacity: 0.8
+            });
+            const logo = new THREE.Mesh(logoGeometry, logoMaterial);
+            logo.position.set(-0.5, 0.05, 0.5);
+            logo.rotation.x = -Math.PI / 2;
+            arduino.add(logo);
+
+            // Reset Button
+            const buttonGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.05);
+            const buttonMaterial = new THREE.MeshStandardMaterial({
+                color: 0x666666,
+                roughness: 0.5
+            });
+            const resetButton = new THREE.Mesh(buttonGeometry, buttonMaterial);
+            resetButton.position.set(1, 0.1, -0.3);
+            resetButton.rotation.x = -Math.PI / 2;
+            arduino.add(resetButton);
+
+            arduino.position.set(0, 0.2, 0);
+            scene.add(arduino);
+        }
+
+        function createBreadboard() {
+            breadboard = new THREE.Group();
+
+            // Main Body
+            const bodyGeometry = new THREE.BoxGeometry(3.5, 0.15, 5.5);
+            const bodyMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1a1a1a,
+                roughness: 0.8
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.castShadow = true;
+            breadboard.add(body);
+
+            // Socket strips
+            const stripMaterial = new THREE.MeshStandardMaterial({
+                color: 0x333333,
+                roughness: 0.6
+            });
+
+            // Power rail strips (red and blue)
+            for (let i = 0; i < 30; i++) {
+                // Red rail
+                const redSocketGeometry = new THREE.CylinderGeometry(0.025, 0.025, 0.1);
+                const redSocket = new THREE.Mesh(redSocketGeometry, stripMaterial);
+                redSocket.position.set(-1.5 + i * 0.1, 0.12, -2.5);
+                breadboard.add(redSocket);
+
+                // Blue rail
+                const blueSocket = new THREE.Mesh(redSocketGeometry, stripMaterial);
+                blueSocket.position.set(-1.5 + i * 0.1, 0.12, 2.5);
+                breadboard.add(blueSocket);
+            }
+
+            // Signal strips
+            for (let row = 0; row < 5; row++) {
+                for (let col = 0; col < 28; col++) {
+                    const socketGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.08);
+                    const socket = new THREE.Mesh(socketGeometry, stripMaterial);
+                    socket.position.set(-1.4 + col * 0.1, 0.12, -2 + row * 0.9);
+                    breadboard.add(socket);
+                }
+            }
+
+            // Center gap
+            const gapGeometry = new THREE.BoxGeometry(3.5, 0.02, 0.3);
+            const gapMaterial = new THREE.MeshStandardMaterial({
+                color: 0x0a0a0a,
+                roughness: 1
+            });
+            const gap = new THREE.Mesh(gapGeometry, gapMaterial);
+            gap.position.y = 0.08;
+            breadboard.add(gap);
+
+            breadboard.position.set(-3.5, 0.08, 0);
+            scene.add(breadboard);
+        }
+
+        function createSensors() {
+            // Soil Moisture Sensor
+            soilSensor = new THREE.Group();
+
+            // Sensor PCB
+            const pcbGeometry = new THREE.BoxGeometry(0.8, 0.05, 1.2);
+            const pcbMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1a5c2e,
+                roughness: 0.4
+            });
+            const pcb = new THREE.Mesh(pcbGeometry, pcbMaterial);
+            soilSensor.add(pcb);
+
+            // Sensor Probes
+            const probeMaterial = new THREE.MeshStandardMaterial({
+                color: 0xcccccc,
+                roughness: 0.2,
+                metalness: 0.9
+            });
+
+            for (let i = 0; i < 2; i++) {
+                const probeGeometry = new THREE.CylinderGeometry(0.03, 0.03, 1.5);
+                const probe = new THREE.Mesh(probeGeometry, probeMaterial);
+                probe.position.set(-0.2 + i * 0.4, -1, 0);
+                probe.rotation.x = Math.PI / 2;
+                soilSensor.add(probe);
+
+                // Probe fork
+                const forkGeometry = new THREE.BoxGeometry(0.02, 0.8, 0.02);
+                const fork1 = new THREE.Mesh(forkGeometry, probeMaterial);
+                fork1.position.set(-0.2 + i * 0.4, -1.4, 0.3);
+                soilSensor.add(fork1);
+
+                const fork2 = fork1.clone();
+                fork2.position.z = -0.3;
+                soilSensor.add(fork2);
+            }
+
+            // Sensor connector
+            const connectorGeometry = new THREE.BoxGeometry(0.3, 0.1, 0.4);
+            const connectorMaterial = new THREE.MeshStandardMaterial({
+                color: 0x333333,
+                roughness: 0.5
+            });
+            const connector = new THREE.Mesh(connectorGeometry, connectorMaterial);
+            connector.position.set(0, 0.1, -0.8);
+            soilSensor.add(connector);
+
+            // Sensor label
+            const labelGeometry = new THREE.PlaneGeometry(0.5, 0.15);
+            const labelMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.7
+            });
+            const label = new THREE.Mesh(labelGeometry, labelMaterial);
+            label.position.set(0, 0.03, 0.2);
+            label.rotation.x = -Math.PI / 2;
+            soilSensor.add(label);
+
+            soilSensor.position.set(-1, 0.3, 2);
+            soilSensor.rotation.x = -Math.PI / 6;
+            scene.add(soilSensor);
+
+            // Ultrasonic Sensor HC-SR04
+            ultrasonicSensor = new THREE.Group();
+
+            // Main body
+            const housingGeometry = new THREE.BoxGeometry(0.6, 0.4, 1);
+            const housingMaterial = new THREE.MeshStandardMaterial({
+                color: 0x222222,
+                roughness: 0.3,
+                metalness: 0.5
+            });
+            const housing = new THREE.Mesh(housingGeometry, housingMaterial);
+            housing.castShadow = true;
+            ultrasonicSensor.add(housing);
+
+            // Ultrasonic transducers
+            const transducerMaterial = new THREE.MeshStandardMaterial({
+                color: 0x4444aa,
+                roughness: 0.2,
+                metalness: 0.3
+            });
+
+            const transmitterGeometry = new THREE.CylinderGeometry(0.18, 0.18, 0.1);
+            const transmitter = new THREE.Mesh(transmitterGeometry, transducerMaterial);
+            transmitter.position.set(-0.12, 0.25, 0);
+            transmitter.rotation.x = Math.PI / 2;
+            ultrasonicSensor.add(transmitter);
+
+            const receiverGeometry = new THREE.CylinderGeometry(0.18, 0.18, 0.1);
+            const receiver = new THREE.Mesh(receiverGeometry, transducerMaterial);
+            receiver.position.set(0.12, 0.25, 0);
+            receiver.rotation.x = Math.PI / 2;
+            ultrasonicSensor.add(receiver);
+
+            // Pins
+            const pinMaterial = new THREE.MeshStandardMaterial({
+                color: 0xcccccc,
+                metalness: 0.8
+            });
+            for (let i = 0; i < 4; i++) {
+                const pinGeometry = new THREE.BoxGeometry(0.03, 0.15, 0.03);
+                const pin = new THREE.Mesh(pinGeometry, pinMaterial);
+                pin.position.set(-0.15 + i * 0.1, -0.2, -0.45);
+                ultrasonicSensor.add(pin);
+            }
+
+            ultrasonicSensor.position.set(1.5, 0.2, 2);
+            ultrasonicSensor.rotation.x = -Math.PI / 4;
+            scene.add(ultrasonicSensor);
+        }
+
+        function createPump() {
+            pump = new THREE.Group();
+
+            // Pump body
+            const bodyGeometry = new THREE.CylinderGeometry(0.3, 0.35, 0.8);
+            const bodyMaterial = new THREE.MeshStandardMaterial({
+                color: 0x444444,
+                roughness: 0.4,
+                metalness: 0.6
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.castShadow = true;
+            pump.add(body);
+
+            // Pump inlet
+            const inletGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.2);
+            const inletMaterial = new THREE.MeshStandardMaterial({
+                color: 0x666666,
+                roughness: 0.3,
+                metalness: 0.7
+            });
+            const inlet = new THREE.Mesh(inletGeometry, inletMaterial);
+            inlet.position.set(0, 0.5, 0.25);
+            pump.add(inlet);
+
+            // Pump outlet
+            const outletGeometry = new THREE.CylinderGeometry(0.06, 0.06, 0.25);
+            const outlet = new THREE.Mesh(outletGeometry, inletMaterial);
+            outlet.position.set(0.2, 0.2, 0);
+            outlet.rotation.z = Math.PI / 4;
+            pump.add(outlet);
+
+            // Motor label
+            const motorGeometry = new THREE.CylinderGeometry(0.15, 0.15, 0.1);
+            const motorMaterial = new THREE.MeshStandardMaterial({
+                color: 0x222222,
+                roughness: 0.5
+            });
+            const motor = new THREE.Mesh(motorGeometry, motorMaterial);
+            motor.position.set(0, -0.45, 0);
+            pump.add(motor);
+
+            pump.position.set(4, 0.7, 1);
+            scene.add(pump);
+        }
+
+        function createRelay() {
+            relay = new THREE.Group();
+
+            // Module base
+            const baseGeometry = new THREE.BoxGeometry(0.8, 0.15, 0.6);
+            const baseMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1a4a6e,
+                roughness: 0.5
+            });
+            const base = new THREE.Mesh(baseGeometry, baseMaterial);
+            base.castShadow = true;
+            relay.add(base);
+
+            // Relay coil
+            const coilGeometry = new THREE.BoxGeometry(0.25, 0.2, 0.25);
+            const coilMaterial = new THREE.MeshStandardMaterial({
+                color: 0x333333,
+                roughness: 0.5
+            });
+            const coil = new THREE.Mesh(coilGeometry, coilMaterial);
+            coil.position.set(-0.2, 0.15, 0);
+            relay.add(coil);
+
+            // Relay switch
+            const switchGeometry = new THREE.BoxGeometry(0.15, 0.1, 0.2);
+            const switchMaterial = new THREE.MeshStandardMaterial({
+                color: 0x888888,
+                roughness: 0.3,
+                metalness: 0.7
+            });
+            const relaySwitch = new THREE.Mesh(switchGeometry, switchMaterial);
+            relaySwitch.position.set(0.15, 0.15, 0);
+            relay.add(relaySwitch);
+
+            // Terminals
+            const terminalMaterial = new THREE.MeshStandardMaterial({
+                color: 0xcc9900,
+                roughness: 0.2,
+                metalness: 0.9
+            });
+
+            // COM, NC, NO terminals
+            const positions = [
+                [-0.3, 0.1, 0.25],
+                [0, 0.1, 0.25],
+                [0.3, 0.1, 0.25]
+            ];
+
+            positions.forEach(pos => {
+                const terminalGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.1);
+                const terminal = new THREE.Mesh(terminalGeometry, terminalMaterial);
+                terminal.position.set(...pos);
+                terminal.rotation.x = Math.PI / 2;
+                relay.add(terminal);
+            });
+
+            // Signal LED
+            const ledGeometry = new THREE.SphereGeometry(0.04);
+            const ledMaterial = new THREE.MeshStandardMaterial({
+                color: 0xff0000,
+                emissive: 0xff0000,
+                emissiveIntensity: 0.8
+            });
+            const relayLed = new THREE.Mesh(ledGeometry, ledMaterial);
+            relayLed.position.set(-0.25, 0.12, -0.2);
+            relay.add(relayLed);
+
+            relay.position.set(-3, 0.35, -2);
+            scene.add(relay);
+        }
+
+        function createLEDs() {
+            // Green LED
+            greenLed = new THREE.Group();
+            const greenBodyGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.2);
+            const greenBodyMaterial = new THREE.MeshStandardMaterial({
+                color: 0x00ff00,
+                emissive: 0x00ff00,
+                emissiveIntensity: 0.2,
+                transparent: true,
+                opacity: 0.8
+            });
+            const greenBody = new THREE.Mesh(greenBodyGeometry, greenBodyMaterial);
+            greenLed.add(greenBody);
+
+            // Green LED dome
+            const greenDomeGeometry = new THREE.SphereGeometry(0.1, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+            const greenDome = new THREE.Mesh(greenDomeGeometry, greenBodyMaterial);
+            greenDome.position.y = 0.1;
+            greenLed.add(greenDome);
+
+            // Legs
+            const legMaterial = new THREE.MeshStandardMaterial({
+                color: 0xcccccc,
+                metalness: 0.8
+            });
+            const legGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.3);
+            const leg1 = new THREE.Mesh(legGeometry, legMaterial);
+            leg1.position.set(-0.04, -0.25, 0);
+            greenLed.add(leg1);
+            const leg2 = leg1.clone();
+            leg2.position.x = 0.04;
+            greenLed.add(leg2);
+
+            greenLed.position.set(3, 0.5, -1.5);
+            scene.add(greenLed);
+
+            // Red LED
+            redLed = new THREE.Group();
+            const redBodyMaterial = new THREE.MeshStandardMaterial({
+                color: 0xff0000,
+                emissive: 0xff0000,
+                emissiveIntensity: 0.8,
+                transparent: true,
+                opacity: 0.9
+            });
+            const redBody = new THREE.Mesh(greenBodyGeometry.clone(), redBodyMaterial);
+            redLed.add(redBody);
+
+            const redDomeGeometry = new THREE.SphereGeometry(0.1, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+            const redDome = new THREE.Mesh(redDomeGeometry, redBodyMaterial);
+            redDome.position.y = 0.1;
+            redLed.add(redDome);
+
+            const leg3 = leg1.clone();
+            leg3.position.set(-0.04, -0.25, 0);
+            redLed.add(leg3);
+            const leg4 = leg1.clone();
+            leg4.position.x = 0.04;
+            redLed.add(leg4);
+
+            redLed.position.set(3, 0.5, -2);
+            scene.add(redLed);
+        }
+
+        function createWires() {
+            const wireGroup = new THREE.Group();
+
+            // Wire helper function
+            function createWire(points, color, radius = 0.02) {
+                const curve = new THREE.CatmullRomCurve3(points);
+                const tubeGeometry = new THREE.TubeGeometry(curve, 32, radius, 8, false);
+                const wireMaterial = new THREE.MeshStandardMaterial({
+                    color: color,
+                    roughness: 0.5,
+                    metalness: 0.3
+                });
+                return new THREE.Mesh(tubeGeometry, wireMaterial);
+            }
+
+            // 5V Power Rail (Green) - Arduino to Breadboard
+            const vccWire1 = createWire([
+                new THREE.Vector3(-0.5, 0.3, -0.8),
+                new THREE.Vector3(-0.5, 0.5, -0.8),
+                new THREE.Vector3(-0.5, 0.5, -1.5),
+                new THREE.Vector3(-1.5, 0.5, -1.5),
+                new THREE.Vector3(-2, 0.3, -2)
+            ], 0x00ff88);
+            wireGroup.add(vccWire1);
+
+            // GND Wire (Black) - Arduino to Breadboard
+            const gndWire1 = createWire([
+                new THREE.Vector3(-0.8, 0.3, -0.8),
+                new THREE.Vector3(-0.8, 0.5, -1),
+                new THREE.Vector3(-0.8, 0.5, -1.8),
+                new THREE.Vector3(-1.5, 0.5, -1.8),
+                new THREE.Vector3(-2, 0.3, 2)
+            ], 0x111111);
+            wireGroup.add(gndWire1);
+
+            // Soil Sensor Signal (Blue) - A0
+            const soilWire = createWire([
+                new THREE.Vector3(-0.9, 0.3, -0.8),
+                new THREE.Vector3(-0.9, 0.6, -0.5),
+                new THREE.Vector3(-0.9, 0.6, 1),
+                new THREE.Vector3(-1, 0.6, 1.5),
+                new THREE.Vector3(-0.8, 0.4, 2)
+            ], 0x00d4ff);
+            wireGroup.add(soilWire);
+
+            // Ultrasonic TRIG (Orange) - D9
+            const trigWire = createWire([
+                new THREE.Vector3(0.35, 0.3, -0.8),
+                new THREE.Vector3(0.35, 0.6, 0),
+                new THREE.Vector3(0.5, 0.6, 1),
+                new THREE.Vector3(1, 0.5, 1.5),
+                new THREE.Vector3(1.5, 0.4, 2)
+            ], 0xff8800);
+            wireGroup.add(trigWire);
+
+            // Ultrasonic ECHO (Yellow) - D10
+            const echoWire = createWire([
+                new THREE.Vector3(0.5, 0.3, -0.8),
+                new THREE.Vector3(0.5, 0.6, 0.5),
+                new THREE.Vector3(0.7, 0.6, 1.2),
+                new THREE.Vector3(1.2, 0.5, 1.5),
+                new THREE.Vector3(1.5, 0.35, 1.8)
+            ], 0xffff00);
+            wireGroup.add(echoWire);
+
+            // Relay Signal (Red) - D7
+            const relayWire = createWire([
+                new THREE.Vector3(-0.05, 0.3, -0.8),
+                new THREE.Vector3(-0.05, 0.6, -1),
+                new THREE.Vector3(-0.5, 0.6, -1.5),
+                new THREE.Vector3(-1.5, 0.5, -1.8),
+                new THREE.Vector3(-2.5, 0.4, -2)
+            ], 0xff6b6b);
+            wireGroup.add(relayWire);
+
+            // Relay to Pump (Purple)
+            const pumpWire = createWire([
+                new THREE.Vector3(-2.7, 0.4, -2),
+                new THREE.Vector3(-3.5, 0.4, -1),
+                new THREE.Vector3(-4, 0.5, 0),
+                new THREE.Vector3(4, 0.5, 0.5),
+                new THREE.Vector3(4, 0.6, 1)
+            ], 0xaa66ff);
+            wireGroup.add(pumpWire);
+
+            scene.add(wireGroup);
+        }
+
+        function createPlant() {
+            const plantGroup = new THREE.Group();
+
+            // Pot
+            const potGeometry = new THREE.CylinderGeometry(0.6, 0.5, 0.7, 16);
+            const potMaterial = new THREE.MeshStandardMaterial({
+                color: 0x8b4513,
+                roughness: 0.8
+            });
+            const pot = new THREE.Mesh(potGeometry, potMaterial);
+            pot.castShadow = true;
+            plantGroup.add(pot);
+
+            // Soil in pot
+            const soilGeometry = new THREE.CylinderGeometry(0.55, 0.55, 0.1, 16);
+            const soilMaterial = new THREE.MeshStandardMaterial({
+                color: 0x3d2914,
+                roughness: 1
+            });
+            const soil = new THREE.Mesh(soilGeometry, soilMaterial);
+            soil.position.y = 0.3;
+            plantGroup.add(soil);
+
+            // Plant stem
+            const stemGeometry = new THREE.CylinderGeometry(0.05, 0.07, 1.5);
+            const stemMaterial = new THREE.MeshStandardMaterial({
+                color: 0x228b22,
+                roughness: 0.7
+            });
+            const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+            stem.position.y = 1.1;
+            plantGroup.add(stem);
+
+            // Leaves
+            const leafMaterial = new THREE.MeshStandardMaterial({
+                color: 0x32cd32,
+                roughness: 0.6,
+                side: THREE.DoubleSide
+            });
+
+            for (let i = 0; i < 5; i++) {
+                const leafGeometry = new THREE.SphereGeometry(0.25, 8, 8);
+                const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
+                const angle = (i / 5) * Math.PI * 2;
+                const height = 0.8 + Math.random() * 0.8;
+                leaf.position.set(
+                    Math.cos(angle) * 0.3,
+                    height,
+                    Math.sin(angle) * 0.3
+                );
+                leaf.scale.set(1, 0.3, 1.5);
+                leaf.rotation.y = angle;
+                plantGroup.add(leaf);
+            }
+
+            // Top leaves
+            for (let i = 0; i < 3; i++) {
+                const leafGeometry = new THREE.SphereGeometry(0.2, 8, 8);
+                const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
+                const angle = (i / 3) * Math.PI * 2;
+                leaf.position.set(
+                    Math.cos(angle) * 0.15,
+                    2,
+                    Math.sin(angle) * 0.15
+                );
+                leaf.scale.set(1, 0.3, 1.2);
+                plantGroup.add(leaf);
+            }
+
+            plantGroup.position.set(-1, 0.35, 3.5);
+            scene.add(plantGroup);
+        }
+
+        function createWaterTank() {
+            const tankGroup = new THREE.Group();
+
+            // Tank body
+            const tankGeometry = new THREE.CylinderGeometry(0.8, 0.8, 2, 16, 1, true);
+            const tankMaterial = new THREE.MeshStandardMaterial({
+                color: 0x4488cc,
+                transparent: true,
+                opacity: 0.4,
+                roughness: 0.1,
+                metalness: 0.2,
+                side: THREE.DoubleSide
+            });
+            const tank = new THREE.Mesh(tankGeometry, tankMaterial);
+            tank.castShadow = true;
+            tankGroup.add(tank);
+
+            // Water inside
+            const waterGeometry = new THREE.CylinderGeometry(0.75, 0.75, 1.5);
+            const waterMaterial = new THREE.MeshStandardMaterial({
+                color: 0x00aaff,
+                transparent: true,
+                opacity: 0.6,
+                roughness: 0.1
+            });
+            const water = new THREE.Mesh(waterGeometry, waterMaterial);
+            water.position.y = -0.25;
+            water.name = 'tankWater';
+            tankGroup.add(water);
+
+            // Tank bottom
+            const bottomGeometry = new THREE.CylinderGeometry(0.8, 0.8, 0.1);
+            const bottomMaterial = new THREE.MeshStandardMaterial({
+                color: 0x3366aa,
+                roughness: 0.4
+            });
+            const bottom = new THREE.Mesh(bottomGeometry, bottomMaterial);
+            bottom.position.y = -1;
+            tankGroup.add(bottom);
+
+            // Tank top rim
+            const rimGeometry = new THREE.TorusGeometry(0.8, 0.05, 8, 32);
+            const rimMaterial = new THREE.MeshStandardMaterial({
+                color: 0x5588cc,
+                roughness: 0.3,
+                metalness: 0.5
+            });
+            const rim = new THREE.Mesh(rimGeometry, rimMaterial);
+            rim.position.y = 1;
+            rim.rotation.x = Math.PI / 2;
+            tankGroup.add(rim);
+
+            // Level indicators
+            for (let i = 0; i < 5; i++) {
+                const indicatorGeometry = new THREE.BoxGeometry(0.15, 0.02, 0.02);
+                const indicatorMaterial = new THREE.MeshStandardMaterial({
+                    color: i < 1 ? 0xff4444 : 0x44ff44,
+                    emissive: i < 1 ? 0xff0000 : 0x00ff00,
+                    emissiveIntensity: 0.3
+                });
+                const indicator = new THREE.Mesh(indicatorGeometry, indicatorMaterial);
+                indicator.position.set(0.85, -0.8 + i * 0.4, 0);
+                tankGroup.add(indicator);
+            }
+
+            tankGroup.position.set(5, 1.5, 3);
+            scene.add(tankGroup);
+        }
+
+        function createWaterParticles() {
+            const particleGeometry = new THREE.SphereGeometry(0.02, 8, 8);
+            const particleMaterial = new THREE.MeshStandardMaterial({
+                color: 0x00aaff,
+                transparent: true,
+                opacity: 0.8,
+                emissive: 0x0088cc,
+                emissiveIntensity: 0.3
+            });
+
+            for (let i = 0; i < 50; i++) {
+                const particle = new THREE.Mesh(particleGeometry, particleMaterial.clone());
+                particle.visible = false;
+                particle.userData = {
+                    active: false,
+                    speed: 0,
+                    startY: 0
+                };
+                waterParticles.push(particle);
+                scene.add(particle);
+            }
+        }
+
+        function setupControls() {
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            let theta = Math.PI / 4;
+            let phi = Math.PI / 4;
+            let radius = 15;
+
+            function updateCamera() {
+                camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
+                camera.position.y = radius * Math.cos(phi);
+                camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
+                camera.lookAt(0, 0.5, 0);
+            }
+
+            document.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+
+                theta -= deltaX * 0.01;
+                phi -= deltaY * 0.01;
+                phi = Math.max(0.1, Math.min(Math.PI - 0.1, phi));
+
+                updateCamera();
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            document.addEventListener('wheel', (e) => {
+                radius += e.deltaY * 0.01;
+                radius = Math.max(5, Math.min(30, radius));
+                updateCamera();
+            });
+
+            // Touch support
+            document.addEventListener('touchstart', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            });
+
+            document.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+
+                const deltaX = e.touches[0].clientX - previousMousePosition.x;
+                const deltaY = e.touches[0].clientY - previousMousePosition.y;
+
+                theta -= deltaX * 0.01;
+                phi -= deltaY * 0.01;
+                phi = Math.max(0.1, Math.min(Math.PI - 0.1, phi));
+
+                updateCamera();
+                previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            });
+
+            document.addEventListener('touchend', () => {
+                isDragging = false;
+            });
+
+            updateCamera();
+        }
+
+        function setupEventListeners() {
+            document.getElementById('autoBtn').addEventListener('click', () => {
+                autoMode = true;
+                document.getElementById('autoBtn').style.background = 'linear-gradient(135deg, #00ff88, #00cc6a)';
+                document.getElementById('autoBtn').style.color = '#0a1628';
+                document.getElementById('manualBtn').style.background = 'rgba(255, 255, 255, 0.1)';
+                document.getElementById('manualBtn').style.color = '#fff';
+            });
+
+            document.getElementById('manualBtn').addEventListener('click', () => {
+                autoMode = false;
+                pumpRunning = !pumpRunning;
+                document.getElementById('manualBtn').style.background = 'linear-gradient(135deg, #00ff88, #00cc6a)';
+                document.getElementById('manualBtn').style.color = '#0a1628';
+                document.getElementById('autoBtn').style.background = 'rgba(255, 255, 255, 0.1)';
+                document.getElementById('autoBtn').style.color = '#fff';
+            });
+
+            document.getElementById('thresholdInput').addEventListener('change', (e) => {
+                threshold = parseInt(e.target.value) || 35;
+                document.getElementById('thresholdDisplay').textContent = threshold;
+            });
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        function updateSimulation() {
+            // Simulate sensor readings with smooth transitions
+            moisture += (Math.random() - 0.5) * 2;
+            moisture = Math.max(0, Math.min(100, moisture));
+
+            waterLevel += (Math.random() - 0.5) * 0.5;
+            waterLevel = Math.max(0, Math.min(100, waterLevel));
+
+            // Auto mode logic
+            if (autoMode) {
+                if (moisture < threshold && waterLevel > 20) {
+                    pumpRunning = true;
+                } else {
+                    pumpRunning = false;
+                }
+            }
+
+            // Update UI
+            document.getElementById('moistureValue').textContent = Math.round(moisture) + '%';
+            document.getElementById('moistureBar').style.width = moisture + '%';
+            document.getElementById('waterValue').textContent = Math.round(waterLevel) + '%';
+            document.getElementById('waterBar').style.width = waterLevel + '%';
+
+            if (pumpRunning) {
+                document.getElementById('pumpStatus').textContent = 'working';
+                document.getElementById('pumpStatus').style.color = '#00ff88';
+                document.getElementById('pumpIcon').classList.add('active');
+                document.getElementById('greenLedStatus').textContent = 'مضاء';
+                document.getElementById('greenLedStatus').style.color = '#00ff88';
+                document.getElementById('redLedStatus').textContent = 'مطفأ';
+                document.getElementById('redLedStatus').style.color = '#8899aa';
+                document.getElementById('greenLed').classList.add('green');
+                document.getElementById('redLed').style.background = '#442222';
+                document.getElementById('redLed').style.boxShadow = '0 0 5px #442222';
+
+                // Decrease water level when pump is running
+                waterLevel -= 0.02;
+            } else {
+                document.getElementById('pumpStatus').textContent = 'متوقفة';
+                document.getElementById('pumpStatus').style.color = '#ff6b6b';
+                document.getElementById('pumpIcon').classList.remove('active');
+                document.getElementById('greenLedStatus').textContent = 'مطفأ';
+                document.getElementById('greenLedStatus').style.color = '#8899aa';
+                document.getElementById('redLedStatus').textContent = 'مضاء';
+                document.getElementById('redLedStatus').style.color = '#00ff88';
+                document.getElementById('greenLed').classList.remove('green');
+                document.getElementById('greenLed').style.background = '#225522';
+                document.getElementById('greenLed').style.boxShadow = '0 0 5px #225522';
+                document.getElementById('redLed').style.background = '#ff4444';
+                document.getElementById('redLed').style.boxShadow = '0 0 10px #ff4444';
+            }
+
+            // Update system time
+            const now = new Date();
+            document.getElementById('systemTime').textContent = 
+                now.toLocaleTimeString('ar-EG');
+
+            // Decrease moisture slowly over time
+            if (!pumpRunning) {
+                moisture -= 0.01;
+            }
+        }
+
+        function updateWaterParticles() {
+            waterParticles.forEach(particle => {
+                if (particle.userData.active) {
+                    particle.position.y -= particle.userData.speed;
+                    particle.position.x += (Math.random() - 0.5) * 0.02;
+                    particle.position.z += (Math.random() - 0.5) * 0.02;
+
+                    // Reset when reaches ground
+                    if (particle.position.y < 0.5) {
+                        particle.userData.active = false;
+                        particle.visible = false;
+                    }
+                }
+            });
+
+            // Spawn new water drops when pump is running
+            if (pumpRunning) {
+                waterParticles.forEach(particle => {
+                    if (!particle.userData.active) {
+                        particle.visible = true;
+                        particle.userData.active = true;
+                        particle.userData.speed = 0.05 + Math.random() * 0.05;
+                        particle.position.set(
+                            4 + (Math.random() - 0.5) * 0.3,
+                            1.5,
+                            1.5 + (Math.random() - 0.5) * 0.3
+                        );
+                        return;
+                    }
+                });
+            }
+        }
+
+        function updateTankWater() {
+            const tankWater = scene.getObjectByName('tankWater');
+            if (tankWater) {
+                const targetScale = waterLevel / 100;
+                tankWater.scale.y = targetScale;
+                tankWater.position.y = -1 + targetScale * 1.5;
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = clock.getElapsedTime();
+
+            // Rotate pump when running
+            if (pumpRunning && pump) {
+                pump.rotation.y += 0.1;
+            }
+
+            // Animate LEDs
+            if (greenLed) {
+                const greenIntensity = pumpRunning ? 0.5 + Math.sin(time * 10) * 0.3 : 0.1;
+                greenLed.children[0].material.emissiveIntensity = greenIntensity;
+            }
+
+            if (redLed) {
+                const redIntensity = pumpRunning ? 0.1 : 0.5 + Math.sin(time * 5) * 0.3;
+                redLed.children[0].material.emissiveIntensity = redIntensity;
+            }
+
+            // Animate ultrasonic sensor
+            if (ultrasonicSensor) {
+                ultrasonicSensor.children.forEach((child, i) => {
+                    if (i < 2) {
+                        child.material.emissive = new THREE.Color(0x4444aa);
+                        child.material.emissiveIntensity = 0.2 + Math.sin(time * 3 + i) * 0.1;
+                    }
+                });
+            }
+
+            // Update simulation
+            updateSimulation();
+            updateWaterParticles();
+            updateTankWater();
+
+            // Render
+            renderer.render(scene, camera);
+        }
+
+        // Initialize on load
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html> 
