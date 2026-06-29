@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام الري الذكي - محاكاة Arduino</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a1628 0%, #1a2a4a 50%, #0d1f3c 100%);
+            overflow: hidden;
+            color: #fff;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0; left: 0;
+        }
+
+        .ui-overlay {
+            position: fixed;
+            z-index: 100;
+            pointer-events: none;
+        }
+        .ui-overlay * { pointer-events: auto; }
+
+        /* Header */
+        .header {
+            top: 0; left: 0; right: 0;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(180deg, rgba(10,22,40,0.95) 0%, rgba(10,22,40,0) 100%);
+        }
+
+        .logo { display: flex; align-items: center; gap: 15px; }
+        .logo-icon {
+            width: 50px; height: 50px;
+            background: linear-gradient(135deg, #00ff88, #00cc6a);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 4px 20px rgba(0,255,136,0.3);
+        }
+        .logo h1 {
+            font-size: 1.5rem; font-weight: 700;
+            background: linear-gradient(135deg, #00ff88, #00d4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .logo span { font-size: 0.85rem; color: #8899aa; }
+
+        /* Status Panel */
+        .status-panel {
+            top: 100px; right: 20px;
+            width: 320px;
+            background: rgba(15,30,50,0.95);
+            border-radius: 16px;
+            border: 1px solid rgba(0,255,136,0.2);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .panel-header {
+            padding: 15px 20px;
+            background: linear-gradient(90deg, rgba(0,255,136,0.1), rgba(0,212,255,0.1));
+            border-bottom: 1px solid rgba(0,255,136,0.2);
+            display: flex; align-items: center; gap: 10px;
+        }
+        .panel-header h3 { font-size: 1rem; color: #00ff88; }
+
+        .status-indicator {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: #00ff88;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%,100% { opacity:1; box-shadow: 0 0 10px #00ff88; }
+            50% { opacity:0.5; box-shadow: 0 0 5px #00ff88; }
+        }
+
+        .panel-content { padding: 20px; }
+
+        .sensor-reading { margin-bottom: 20px; }
+        .sensor-label {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 8px;
+        }
+        .sensor-label span { font-size: 0.9rem; color: #8899aa; }
+        .sensor-value { font-size: 1.2rem; font-weight: 700; color: #00d4ff; }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%; border-radius: 4px;
+            transition: width 0.5s ease, background 0.3s ease;
+        }
+        .moisture-fill { background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77); }
+        .water-fill { background: linear-gradient(90deg, #4dabf7, #00d4ff); }
+
+        .system-status {
+            margin-top: 25px; padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .status-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 0;
+        }
+        .status-item .label {
+            display: flex; align-items: center; gap: 10px; color: #aabbcc;
+        }
+        .status-icon {
+            width: 32px; height: 32px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+        }
+        .pump-icon { background: rgba(255,107,107,0.2); }
+        .pump-icon.active {
+            background: rgba(0,255,136,0.2);
+            animation: glow-green 1s infinite;
+        }
+        @keyframes glow-green {
+            0%,100% { box-shadow: 0 0 10px rgba(0,255,136,0.5); }
+            50% { box-shadow: 0 0 20px rgba(0,255,136,0.8); }
+        }
+
+        .led-dot {
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            background: #333;
+            box-shadow: 0 0 4px #333;
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+        .led-dot.green-on { background: #00ff88; box-shadow: 0 0 15px #00ff88; }
+        .led-dot.red-on   { background: #ff4444; box-shadow: 0 0 10px #ff4444; }
+
+        /* Manual Sliders Panel */
+        .manual-panel {
+            top: 100px; left: 20px;
+            width: 260px;
+            background: rgba(15,30,50,0.95);
+            border-radius: 16px;
+            border: 1px solid rgba(0,212,255,0.2);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            display: none;
+        }
+        .manual-panel.visible { display: block; }
+        .manual-panel .panel-header { border-bottom: 1px solid rgba(0,212,255,0.2); }
+        .manual-panel .panel-header h3 { color: #00d4ff; }
+
+        .slider-group { margin-bottom: 18px; }
+        .slider-label {
+            display: flex; justify-content: space-between;
+            margin-bottom: 6px; font-size: 0.85rem; color: #8899aa;
+        }
+        .slider-label span:last-child { color: #00d4ff; font-weight: 600; }
+        input[type="range"] {
+            width: 100%; -webkit-appearance: none;
+            height: 6px; border-radius: 3px;
+            background: rgba(255,255,255,0.15);
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px; height: 18px; border-radius: 50%;
+            background: #00d4ff;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(0,212,255,0.5);
+        }
+
+        /* Legend */
+        .legend {
+            top: 100px; left: 20px;
+            background: rgba(15,30,50,0.9);
+            border-radius: 12px;
+            padding: 15px 20px;
+            border: 1px solid rgba(0,255,136,0.15);
+            backdrop-filter: blur(10px);
+        }
+        .legend h4 { font-size: 0.85rem; color: #00ff88; margin-bottom: 12px; }
+        .legend-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 6px 0; font-size: 0.8rem; color: #aabbcc;
+        }
+        .legend-color { width: 16px; height: 4px; border-radius: 2px; }
+
+        /* Info Cards */
+        .info-cards {
+            bottom: 100px; left: 20px;
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        .info-card {
+            background: rgba(15,30,50,0.9);
+            border-radius: 12px;
+            padding: 15px 20px;
+            border: 1px solid rgba(0,255,136,0.15);
+            backdrop-filter: blur(10px);
+            min-width: 200px;
+        }
+        .info-card h4 { font-size: 0.8rem; color: #00ff88; margin-bottom: 8px; }
+        .info-card p { font-size: 0.85rem; color: #8899aa; line-height: 1.5; }
+        .info-card .value { color: #00d4ff; font-weight: 600; }
+
+        /* Controls Panel */
+        .controls-panel {
+            bottom: 20px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15,30,50,0.95);
+            border-radius: 16px;
+            border: 1px solid rgba(0,255,136,0.2);
+            padding: 15px 25px;
+            display: flex; gap: 20px; align-items: center;
+            backdrop-filter: blur(10px);
+        }
+        .control-btn {
+            padding: 12px 24px;
+            border: none; border-radius: 10px;
+            font-size: 0.95rem; font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex; align-items: center; gap: 8px;
+            font-family: inherit;
+        }
+        .btn-auto {
+            background: linear-gradient(135deg, #00ff88, #00cc6a);
+            color: #0a1628;
+        }
+        .btn-manual {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,255,136,0.3);
+        }
+        .threshold-control {
+            display: flex; align-items: center; gap: 10px;
+            padding: 0 15px;
+            border-right: 1px solid rgba(255,255,255,0.1);
+        }
+        .threshold-control label { font-size: 0.85rem; color: #8899aa; }
+        .threshold-control input {
+            width: 80px; padding: 8px 12px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: #00d4ff; font-size: 0.95rem;
+            text-align: center; font-family: inherit;
+        }
+
+        /* Loading Screen */
+        .loading-screen {
+            position: fixed; top:0; left:0;
+            width:100%; height:100%;
+            background: #0a1628;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+        .loading-screen.hidden { opacity:0; pointer-events:none; }
+
+        .loading-logo {
+            width:80px; height:80px;
+            background: linear-gradient(135deg, #00ff88, #00d4ff);
+            border-radius: 20px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 40px;
+            margin-bottom: 30px;
+            animation: float 2s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%,100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .loading-text { font-size: 1.2rem; color: #00ff88; margin-bottom: 20px; }
+        .loading-bar {
+            width: 200px; height: 4px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px; overflow: hidden;
+        }
+        .loading-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00d4ff);
+            animation: loading 1.5s ease-in-out infinite;
+        }
+        @keyframes loading {
+            0% { width:0%; margin-left:0; }
+            50% { width:70%; margin-left:15%; }
+            100% { width:0%; margin-left:100%; }
+        }
+
+        @media (max-width: 768px) {
+            .status-panel { width:280px; right:10px; }
+            .controls-panel { flex-wrap: wrap; justify-content: center; padding:15px; }
+            .threshold-control { border-right:none; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px; width:100%; justify-content:center; }
+            .info-cards, .legend { display:none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="loading-screen" id="loadingScreen">
+    <div class="loading-logo">💧</div>
+    <div class="loading-text">جاري تحميل المحاكاة...</div>
+    <div class="loading-bar"><div class="loading-progress"></div></div>
+</div>
+
+<div id="canvas-container"></div>
+
+<!-- Header -->
+<div class="ui-overlay header">
+    <div class="logo">
+        <div class="logo-icon">🌱</div>
+        <div>
+            <h1>نظام الري الذكي</h1>
+            <span>Smart Irrigation System</span>
+        </div>
+    </div>
+    <div style="display:flex;gap:15px;">
+        <div class="info-card" style="min-width:auto;">
+            <h4>⏱️ الوقت</h4>
+            <p id="systemTime" style="font-size:1.1rem;color:#00d4ff;">00:00:00</p>
+        </div>
+    </div>
+</div>
+
+<!-- Status Panel (right) -->
+<div class="ui-overlay status-panel">
+    <div class="panel-header">
+        <div class="status-indicator"></div>
+        <h3>📊 قراءة الحساسات</h3>
+    </div>
+    <div class="panel-content">
+        <div class="sensor-reading">
+            <div class="sensor-label">
+                <span>💧 رطوبة التربة</span>
+                <span class="sensor-value" id="moistureValue">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill moisture-fill" id="moistureBar" style="width:0%"></div>
+            </div>
+        </div>
+        <div class="sensor-reading">
+            <div class="sensor-label">
+                <span>📏 مستوى الماء في الخزان</span>
+                <span class="sensor-value" id="waterValue">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill water-fill" id="waterBar" style="width:0%"></div>
+            </div>
+        </div>
+
+        <div class="system-status">
+            <div class="status-item">
+                <span class="label">
+                    <span class="status-icon pump-icon" id="pumpIcon">🚰</span>
+                    المضخة
+                </span>
+                <span id="pumpStatus" style="color:#ff6b6b;font-weight:600;">متوقفة</span>
+            </div>
+            <div class="status-item">
+                <span class="label">
+                    <div class="led-dot" id="greenLedDot"></div>
+                    LED أخضر
+                </span>
+                <span id="greenLedStatus" style="color:#8899aa;">مطفأ</span>
+            </div>
+            <div class="status-item">
+                <span class="label">
+                    <div class="led-dot" id="redLedDot"></div>
+                    LED أحمر
+                </span>
+                <span id="redLedStatus" style="color:#8899aa;">مطفأ</span>
+            </div>
+        </div>
+
+        <!-- حالة النظام -->
+        <div style="margin-top:15px;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,0.2);font-size:0.82rem;color:#8899aa;" id="systemStateBox">
+            حالة النظام: جاري التقييم...
+        </div>
+    </div>
+</div>
+
+<!-- Manual Controls Panel (left, shown only in manual mode) -->
+<div class="ui-overlay manual-panel" id="manualPanel">
+    <div class="panel-header">
+        <div class="status-indicator" style="background:#00d4ff;"></div>
+        <h3>🎮 التحكم اليدوي</h3>
+    </div>
+    <div class="panel-content">
+        <div class="slider-group">
+            <div class="slider-label">
+                <span>💧 رطوبة التربة</span>
+                <span id="manualMoistureVal">50%</span>
+            </div>
+            <input type="range" id="manualMoistureSlider" min="0" max="100" value="50">
+        </div>
+        <div class="slider-group">
+            <div class="slider-label">
+                <span>📏 مستوى الماء</span>
+                <span id="manualWaterVal">80%</span>
+            </div>
+            <input type="range" id="manualWaterSlider" min="0" max="100" value="80">
+        </div>
+        <p style="font-size:0.78rem;color:#556677;margin-top:8px;">
+            حرّك المؤشرات لضبط القيم الابتدائية. عند تشغيل المضخة، مستوى الماء ينقص ورطوبة التربة ترتفع تلقائياً.
+        </p>
+    </div>
+</div>
+
+<!-- Legend (auto mode, left side) -->
+<div class="ui-overlay legend" id="legendPanel">
+    <h4>🎨 مفتاح الألوان</h4>
+    <div class="legend-item"><div class="legend-color" style="background:#00ff88;"></div><span>توصيل 5V</span></div>
+    <div class="legend-item"><div class="legend-color" style="background:#333;border:1px solid #555;"></div><span>GND</span></div>
+    <div class="legend-item"><div class="legend-color" style="background:#ff6b6b;"></div><span>إشارة تحكم</span></div>
+    <div class="legend-item"><div class="legend-color" style="background:#00d4ff;"></div><span>إشارة حساس</span></div>
+    <div class="legend-item"><div class="legend-color" style="background:#aa66ff;"></div><span>خط المضخة</span></div>
+</div>
+
+<!-- Info Cards -->
+<div class="ui-overlay info-cards">
+    <div class="info-card">
+        <h4>🌿 الوحدة الزراعية</h4>
+        <p>• مصدر الماء: مكيف الهواء</p>
+        <p>• الخزان ← المضخة ← الزريعة</p>
+    </div>
+    <div class="info-card">
+        <h4>⚙️ منطق النظام</h4>
+        <p>🟢 أخضر: تربة جافة + خزان ممتلئ</p>
+        <p>🔴 أحمر: تربة جافة + خزان فارغ</p>
+        <p>⚫ مطفأ: التربة رطبة (لا حاجة للري)</p>
+        <p>حد الرطوبة: <span class="value" id="thresholdDisplay">35</span>%</p>
+    </div>
+</div>
+
+<!-- Controls -->
+<div class="ui-overlay controls-panel">
+    <button class="control-btn btn-auto" id="autoBtn">🤖 وضع تلقائي</button>
+    <button class="control-btn btn-manual" id="manualBtn">🎮 وضع يدوي</button>
+    <div class="threshold-control">
+        <label>حد الرطوبة:</label>
+        <input type="number" id="thresholdInput" value="35" min="0" max="100">
+        <span>%</span>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// =============================================
+//  GLOBAL STATE
+// =============================================
+let scene, camera, renderer;
+let arduinoObj, breadboard, pumpObj, soilSensor, ultrasonicSensor, relayObj;
+let greenLedObj, redLedObj;
+let waterParticles = [];
+let acDrops = [];
+let pipeObj = null; // الأنبوب من الخزان للزريعة عبر المضخة
+
+let moisture  = 50;
+let waterLevel = 80;
+let threshold  = 35;
+let pumpRunning = false;
+let autoMode    = true;
+let clock = new THREE.Clock();
+
+// =============================================
+//  INIT
+// =============================================
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a1628);
+    scene.fog = new THREE.Fog(0x0a1628, 18, 38);
+
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(8, 6, 10);
+    camera.lookAt(0, 0, 0);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    setupLights();
+    createGround();
+    createTable();
+    createArduino();
+    createBreadboard();
+    createSensors();
+    createPump();
+    createRelay();
+    createLEDs();
+    createWires();
+    createPlant();
+    createWaterTank();
+    createACUnit();
+    createPipeline();   // ← الأنبوب الجديد
+    createWaterParticles();
+
+    setupControls();
+    setupEventListeners();
+
+    setTimeout(() => document.getElementById('loadingScreen').classList.add('hidden'), 2000);
+    animate();
+}
+
+// =============================================
+//  LIGHTS
+// =============================================
+function setupLights() {
+    scene.add(new THREE.AmbientLight(0x404060, 0.5));
+
+    const main = new THREE.DirectionalLight(0xffffff, 1);
+    main.position.set(5, 10, 5);
+    main.castShadow = true;
+    main.shadow.mapSize.set(2048, 2048);
+    main.shadow.camera.near = 0.5; main.shadow.camera.far = 50;
+    main.shadow.camera.left = -15; main.shadow.camera.right = 15;
+    main.shadow.camera.top = 15;  main.shadow.camera.bottom = -15;
+    scene.add(main);
+
+    const fill = new THREE.DirectionalLight(0x00d4ff, 0.3);
+    fill.position.set(-5, 5, -5);
+    scene.add(fill);
+
+    const rim = new THREE.DirectionalLight(0x00ff88, 0.2);
+    rim.position.set(0, 5, -10);
+    scene.add(rim);
+
+    const glow = new THREE.PointLight(0x00ff88, 0.5, 5);
+    glow.position.set(0, 2, 0);
+    scene.add(glow);
+}
+
+// =============================================
+//  GROUND & TABLE
+// =============================================
+function createGround() {
+    const g = new THREE.Mesh(
+        new THREE.PlaneGeometry(50, 50),
+        new THREE.MeshStandardMaterial({ color: 0x1a2a4a, roughness: 0.9, metalness: 0.1 })
+    );
+    g.rotation.x = -Math.PI / 2;
+    g.position.y = -0.5;
+    g.receiveShadow = true;
+    scene.add(g);
+    const grid = new THREE.GridHelper(20, 40, 0x00ff88, 0x1a3a5a);
+    grid.position.y = -0.49;
+    scene.add(grid);
+}
+
+function createTable() {
+    const top = new THREE.Mesh(
+        new THREE.BoxGeometry(12, 0.3, 8),
+        new THREE.MeshStandardMaterial({ color: 0x2a3a5a, roughness: 0.3, metalness: 0.1 })
+    );
+    top.position.y = -0.35; top.castShadow = true; top.receiveShadow = true;
+    scene.add(top);
+
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x1a2a4a, roughness: 0.5, metalness: 0.3 });
+    [[-5.5,-1.5,3.5],[5.5,-1.5,3.5],[-5.5,-1.5,-3.5],[5.5,-1.5,-3.5]].forEach(p => {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,3), legMat);
+        leg.position.set(...p); leg.castShadow = true;
+        scene.add(leg);
+    });
+}
+
+// =============================================
+//  ARDUINO
+// =============================================
+function createArduino() {
+    arduinoObj = new THREE.Group();
+
+    const board = new THREE.Mesh(
+        new THREE.BoxGeometry(2.7, 0.08, 2),
+        new THREE.MeshStandardMaterial({ color: 0x1a5c2e, roughness: 0.4, metalness: 0.2 })
+    );
+    board.castShadow = true;
+    arduinoObj.add(board);
+
+    const usbMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.3, metalness: 0.5 });
+    const usb = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.15, 0.3), usbMat);
+    usb.position.set(-1.1, 0.08, -0.7); arduinoObj.add(usb);
+
+    const jack = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.2), usbMat);
+    jack.position.set(-1.1, 0.05, 0.7); jack.rotation.x = Math.PI / 2; arduinoObj.add(jack);
+
+    const chip = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.08, 0.5),
+        new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.3, metalness: 0.3 })
+    );
+    chip.position.set(0.3, 0.08, 0); arduinoObj.add(chip);
+
+    const headerMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.2, metalness: 0.8 });
+    for (let i = 0; i < 14; i++) {
+        const p = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.15,0.08), headerMat);
+        p.position.set(-1.1+i*0.15, 0.12, -0.85); arduinoObj.add(p);
+    }
+    for (let i = 0; i < 6; i++) {
+        const p = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.15,0.08), headerMat);
+        p.position.set(-0.9+i*0.15, 0.12, 0.85); arduinoObj.add(p);
+    }
+    for (let i = 0; i < 6; i++) {
+        const p = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.15,0.08), headerMat);
+        p.position.set(0.3+i*0.15, 0.12, 0.85); arduinoObj.add(p);
+    }
+
+    [0xff0000,0x00ff00,0x0000ff,0xffff00].forEach((c,i) => {
+        const m = new THREE.MeshStandardMaterial({ color:c, emissive:c, emissiveIntensity:0.5 });
+        const l = new THREE.Mesh(new THREE.SphereGeometry(0.04,16,16), m);
+        l.position.set(-0.8+i*0.12, 0.1, -0.6); arduinoObj.add(l);
+    });
+
+    const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.05),
+        new THREE.MeshStandardMaterial({ color:0x666666, roughness:0.5 }));
+    btn.position.set(1,0.1,-0.3); btn.rotation.x = -Math.PI/2; arduinoObj.add(btn);
+
+    arduinoObj.position.set(0, 0.2, 0);
+    scene.add(arduinoObj);
+}
+
+// =============================================
+//  BREADBOARD
+// =============================================
+function createBreadboard() {
+    breadboard = new THREE.Group();
+    const body = new THREE.Mesh(
+        new THREE.BoxGeometry(3.5, 0.15, 5.5),
+        new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 })
+    );
+    body.castShadow = true; breadboard.add(body);
+
+    const sm = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.6 });
+    for (let i = 0; i < 30; i++) {
+        const g = new THREE.CylinderGeometry(0.025, 0.025, 0.1);
+        const r = new THREE.Mesh(g, sm); r.position.set(-1.5+i*0.1, 0.12, -2.5); breadboard.add(r);
+        const b = new THREE.Mesh(g, sm); b.position.set(-1.5+i*0.1, 0.12,  2.5); breadboard.add(b);
+    }
+    for (let row = 0; row < 5; row++) for (let col = 0; col < 28; col++) {
+        const s = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.08), sm);
+        s.position.set(-1.4+col*0.1, 0.12, -2+row*0.9); breadboard.add(s);
+    }
+
+    breadboard.position.set(-3.5, 0.08, 0);
+    scene.add(breadboard);
+}
+
+// =============================================
+//  SENSORS
+// =============================================
+function createSensors() {
+    // Soil Moisture
+    soilSensor = new THREE.Group();
+    const pcb = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.05,1.2),
+        new THREE.MeshStandardMaterial({ color:0x1a5c2e, roughness:0.4 }));
+    soilSensor.add(pcb);
+
+    const pm = new THREE.MeshStandardMaterial({ color:0xcccccc, roughness:0.2, metalness:0.9 });
+    for (let i = 0; i < 2; i++) {
+        const pr = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1.5), pm);
+        pr.position.set(-0.2+i*0.4,-1,0); pr.rotation.x = Math.PI/2; soilSensor.add(pr);
+        const f1 = new THREE.Mesh(new THREE.BoxGeometry(0.02,0.8,0.02), pm);
+        f1.position.set(-0.2+i*0.4,-1.4,0.3); soilSensor.add(f1);
+        const f2 = f1.clone(); f2.position.z = -0.3; soilSensor.add(f2);
+    }
+
+    const conn = new THREE.Mesh(new THREE.BoxGeometry(0.3,0.1,0.4),
+        new THREE.MeshStandardMaterial({ color:0x333333, roughness:0.5 }));
+    conn.position.set(0,0.1,-0.8); soilSensor.add(conn);
+
+    soilSensor.position.set(-1, 0.3, 2);
+    soilSensor.rotation.x = -Math.PI / 6;
+    scene.add(soilSensor);
+
+    // Ultrasonic HC-SR04
+    ultrasonicSensor = new THREE.Group();
+    const hous = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.4,1),
+        new THREE.MeshStandardMaterial({ color:0x222222, roughness:0.3, metalness:0.5 }));
+    hous.castShadow = true; ultrasonicSensor.add(hous);
+
+    const tm = new THREE.MeshStandardMaterial({ color:0x4444aa, roughness:0.2, metalness:0.3 });
+    const tx = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.1), tm);
+    tx.position.set(-0.12,0.25,0); tx.rotation.x = Math.PI/2; ultrasonicSensor.add(tx);
+    const rx = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.1), tm);
+    rx.position.set(0.12,0.25,0); rx.rotation.x = Math.PI/2; ultrasonicSensor.add(rx);
+
+    const pinm = new THREE.MeshStandardMaterial({ color:0xcccccc, metalness:0.8 });
+    for (let i = 0; i < 4; i++) {
+        const p = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.15,0.03), pinm);
+        p.position.set(-0.15+i*0.1,-0.2,-0.45); ultrasonicSensor.add(p);
+    }
+
+    ultrasonicSensor.position.set(1.5, 0.2, 2);
+    ultrasonicSensor.rotation.x = -Math.PI / 4;
+    scene.add(ultrasonicSensor);
+}
+
+// =============================================
+//  PUMP  (ثابتة — لا تدور على محورها)
+// =============================================
+function createPump() {
+    pumpObj = new THREE.Group();
+
+    const bodyMat = new THREE.MeshStandardMaterial({ color:0x444444, roughness:0.4, metalness:0.6 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.35,0.8), bodyMat);
+    body.castShadow = true; pumpObj.add(body);
+
+    const pipeMat = new THREE.MeshStandardMaterial({ color:0x666666, roughness:0.3, metalness:0.7 });
+
+    // فوهة السحب (من الخزان — جانب الخزان)
+    const inlet = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.35), pipeMat);
+    inlet.position.set(0.4, 0, 0); inlet.rotation.z = Math.PI/2; pumpObj.add(inlet);
+
+    // فوهة الضخ (نحو الزريعة — الجهة الأخرى)
+    const outlet = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.35), pipeMat);
+    outlet.position.set(-0.4, 0, 0); outlet.rotation.z = Math.PI/2; pumpObj.add(outlet);
+
+    // مؤشر دوران المحرك (حلقة داخلية)
+    const motorRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.2, 0.04, 8, 32),
+        new THREE.MeshStandardMaterial({ color:0x00d4ff, emissive:0x004466, emissiveIntensity:0.4 })
+    );
+    motorRing.name = 'motorRing';
+    motorRing.rotation.x = Math.PI/2; pumpObj.add(motorRing);
+
+    pumpObj.position.set(3.5, 0.8, 2.5);
+    pumpObj.rotation.y = Math.PI / 2;
+    scene.add(pumpObj);
+}
+
+// =============================================
+//  PIPELINE — الأنبوب من الخزان ← المضخة ← الزريعة
+// =============================================
+function createPipeline() {
+    function makePipe(points, color = 0x5588cc, r = 0.035) {
+        const curve = new THREE.CatmullRomCurve3(points);
+        const geo   = new THREE.TubeGeometry(curve, 40, r, 8, false);
+        const mat   = new THREE.MeshStandardMaterial({ color, roughness:0.4, metalness:0.5 });
+        return new THREE.Mesh(geo, mat);
+    }
+
+    pipeObj = new THREE.Group();
+
+    // خط السحب: الخزان (5, ~1.5, 3) ← المضخة فوهة سحب (يمين المضخة)
+    const suctionPipe = makePipe([
+        new THREE.Vector3(5, 1.2, 3),
+        new THREE.Vector3(4.5, 1.0, 3),
+        new THREE.Vector3(4.2, 0.8, 2.8),
+        new THREE.Vector3(3.9, 0.8, 2.5),  // دخول المضخة
+    ], 0x4488cc);
+    pipeObj.add(suctionPipe);
+
+    // خط الضخ: المضخة فوهة خروج (يسار المضخة) ← الزريعة
+    const deliveryPipe = makePipe([
+        new THREE.Vector3(3.1, 0.8, 2.5),  // خروج المضخة
+        new THREE.Vector3(2.5, 0.8, 2.8),
+        new THREE.Vector3(1.5, 0.8, 3.2),
+        new THREE.Vector3(0.5, 0.8, 3.5),
+        new THREE.Vector3(-0.5, 0.8, 3.7),
+        new THREE.Vector3(-1,   1.0, 3.8),  // فوق وعاء الزريعة
+    ], 0x3377bb);
+    pipeObj.add(deliveryPipe);
+
+    // رأس الرش فوق الزريعة
+    const nozzle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.09, 0.15, 8),
+        new THREE.MeshStandardMaterial({ color:0x5599cc, roughness:0.3, metalness:0.6 })
+    );
+    nozzle.position.set(-1, 1.05, 3.8);
+    pipeObj.add(nozzle);
+
+    scene.add(pipeObj);
+}
+
+// =============================================
+//  RELAY
+// =============================================
+function createRelay() {
+    relayObj = new THREE.Group();
+
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.15,0.6),
+        new THREE.MeshStandardMaterial({ color:0x1a4a6e, roughness:0.5 }));
+    base.castShadow = true; relayObj.add(base);
+
+    const coil = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.2,0.25),
+        new THREE.MeshStandardMaterial({ color:0x333333, roughness:0.5 }));
+    coil.position.set(-0.2, 0.15, 0); relayObj.add(coil);
+
+    const sw = new THREE.Mesh(new THREE.BoxGeometry(0.15,0.1,0.2),
+        new THREE.MeshStandardMaterial({ color:0x888888, roughness:0.3, metalness:0.7 }));
+    sw.position.set(0.15, 0.15, 0); relayObj.add(sw);
+
+    const tm = new THREE.MeshStandardMaterial({ color:0xcc9900, roughness:0.2, metalness:0.9 });
+    [[-0.3,0.1,0.25],[0,0.1,0.25],[0.3,0.1,0.25]].forEach(p => {
+        const t = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.1), tm);
+        t.position.set(...p); t.rotation.x = Math.PI/2; relayObj.add(t);
+    });
+
+    const rl = new THREE.Mesh(new THREE.SphereGeometry(0.04),
+        new THREE.MeshStandardMaterial({ color:0xff0000, emissive:0xff0000, emissiveIntensity:0.8 }));
+    rl.position.set(-0.25, 0.12, -0.2); relayObj.add(rl);
+
+    relayObj.position.set(-3, 0.35, -2);
+    scene.add(relayObj);
+}
+
+// =============================================
+//  LEDs
+// =============================================
+function createLEDs() {
+    function makeLed(color, pos) {
+        const g = new THREE.Group();
+        const bodyMat = new THREE.MeshStandardMaterial({
+            color, emissive:color, emissiveIntensity:0.2, transparent:true, opacity:0.85
+        });
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.2), bodyMat);
+        g.add(body);
+        const dome = new THREE.Mesh(
+            new THREE.SphereGeometry(0.1,16,16,0,Math.PI*2,0,Math.PI/2),
+            bodyMat
+        );
+        dome.position.y = 0.1; g.add(dome);
+
+        const lm = new THREE.MeshStandardMaterial({ color:0xcccccc, metalness:0.8 });
+        [-0.04,0.04].forEach(x => {
+            const l = new THREE.Mesh(new THREE.CylinderGeometry(0.01,0.01,0.3), lm);
+            l.position.set(x,-0.25,0); g.add(l);
+        });
+        g.position.set(...pos);
+        scene.add(g);
+        return g;
+    }
+
+    greenLedObj = makeLed(0x00ff00, [3, 0.5, -1.5]);
+    redLedObj   = makeLed(0xff0000, [3, 0.5, -2.0]);
+}
+
+// =============================================
+//  WIRES
+// =============================================
+function createWires() {
+    const wg = new THREE.Group();
+
+    function wire(pts, color, r=0.02) {
+        const curve = new THREE.CatmullRomCurve3(pts);
+        const m = new THREE.Mesh(
+            new THREE.TubeGeometry(curve, 32, r, 8, false),
+            new THREE.MeshStandardMaterial({ color, roughness:0.5, metalness:0.3 })
+        );
+        wg.add(m);
+    }
+
+    // 5V
+    wire([new THREE.Vector3(-0.5,0.3,-0.8),new THREE.Vector3(-0.5,0.5,-1.5),new THREE.Vector3(-2,0.3,-2)],0x00ff88);
+    // GND
+    wire([new THREE.Vector3(-0.8,0.3,-0.8),new THREE.Vector3(-0.8,0.5,-1.8),new THREE.Vector3(-2,0.3,2)],0x333333);
+    // Soil A0
+    wire([new THREE.Vector3(-0.9,0.3,-0.8),new THREE.Vector3(-0.9,0.6,1),new THREE.Vector3(-0.8,0.4,2)],0x00d4ff);
+    // TRIG D9
+    wire([new THREE.Vector3(0.35,0.3,-0.8),new THREE.Vector3(0.5,0.6,1),new THREE.Vector3(1.5,0.4,2)],0xff8800);
+    // ECHO D10
+    wire([new THREE.Vector3(0.5,0.3,-0.8),new THREE.Vector3(0.7,0.6,1.2),new THREE.Vector3(1.5,0.35,1.8)],0xffff00);
+    // Relay D7
+    wire([new THREE.Vector3(-0.05,0.3,-0.8),new THREE.Vector3(-0.5,0.6,-1.5),new THREE.Vector3(-2.5,0.4,-2)],0xff6b6b);
+    // Relay → Pump (via power)
+    wire([new THREE.Vector3(-2.7,0.4,-2),new THREE.Vector3(-3.5,0.4,-0.5),new THREE.Vector3(3.5,0.5,2.5)],0xaa66ff);
+    // Green LED D5
+    wire([new THREE.Vector3(0.2,0.3,-0.8),new THREE.Vector3(1.5,0.5,-1),new THREE.Vector3(3,0.4,-1.5)],0x00dd88);
+    // Red LED D4
+    wire([new THREE.Vector3(0.1,0.3,-0.8),new THREE.Vector3(1.5,0.5,-1.5),new THREE.Vector3(3,0.4,-2)],0xff4444);
+
+    scene.add(wg);
+}
+
+// =============================================
+//  PLANT
+// =============================================
+function createPlant() {
+    const pg = new THREE.Group();
+
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.5,0.7,16),
+        new THREE.MeshStandardMaterial({ color:0x8b4513, roughness:0.8 }));
+    pot.castShadow = true; pg.add(pot);
+
+    const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.55,0.1,16),
+        new THREE.MeshStandardMaterial({ color:0x3d2914, roughness:1 }));
+    soil.position.y = 0.3; pg.add(soil);
+
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.07,1.5),
+        new THREE.MeshStandardMaterial({ color:0x228b22, roughness:0.7 }));
+    stem.position.y = 1.1; pg.add(stem);
+
+    const lm = new THREE.MeshStandardMaterial({ color:0x32cd32, roughness:0.6, side:THREE.DoubleSide });
+    for (let i = 0; i < 5; i++) {
+        const a = (i/5)*Math.PI*2;
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.25,8,8), lm);
+        leaf.position.set(Math.cos(a)*0.3, 0.8+Math.random()*0.8, Math.sin(a)*0.3);
+        leaf.scale.set(1,0.3,1.5); leaf.rotation.y = a; pg.add(leaf);
+    }
+    for (let i = 0; i < 3; i++) {
+        const a = (i/3)*Math.PI*2;
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.2,8,8), lm);
+        leaf.position.set(Math.cos(a)*0.15, 2, Math.sin(a)*0.15);
+        leaf.scale.set(1,0.3,1.2); pg.add(leaf);
+    }
+
+    pg.position.set(-1, 0.35, 3.5);
+    scene.add(pg);
+}
+
+// =============================================
+//  WATER TANK
+// =============================================
+function createWaterTank() {
+    const tg = new THREE.Group();
+
+    const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,2,16,1,true),
+        new THREE.MeshStandardMaterial({ color:0x4488cc, transparent:true, opacity:0.4,
+            roughness:0.1, metalness:0.2, side:THREE.DoubleSide }));
+    tank.castShadow = true; tg.add(tank);
+
+    const water = new THREE.Mesh(new THREE.CylinderGeometry(0.75,0.75,1.5),
+        new THREE.MeshStandardMaterial({ color:0x00aaff, transparent:true, opacity:0.6, roughness:0.1 }));
+    water.position.y = -0.25; water.name = 'tankWater'; tg.add(water);
+
+    const bot = new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,0.1),
+        new THREE.MeshStandardMaterial({ color:0x3366aa, roughness:0.4 }));
+    bot.position.y = -1; tg.add(bot);
+
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.8,0.05,8,32),
+        new THREE.MeshStandardMaterial({ color:0x5588cc, roughness:0.3, metalness:0.5 }));
+    rim.position.y = 1; rim.rotation.x = Math.PI/2; tg.add(rim);
+
+    for (let i = 0; i < 5; i++) {
+        const ind = new THREE.Mesh(new THREE.BoxGeometry(0.15,0.02,0.02),
+            new THREE.MeshStandardMaterial({ color:i<1?0xff4444:0x44ff44,
+                emissive:i<1?0xff0000:0x00ff00, emissiveIntensity:0.3 }));
+        ind.position.set(0.85,-0.8+i*0.4,0); tg.add(ind);
+    }
+
+    tg.position.set(5, 1.5, 3);
+    scene.add(tg);
+}
+
+// =============================================
+//  AC UNIT
+// =============================================
+function createACUnit() {
+    const ag = new THREE.Group();
+
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2.5,1.2,1.5),
+        new THREE.MeshStandardMaterial({ color:0xeeeeee, roughness:0.2, metalness:0.1 }));
+    body.castShadow = true; ag.add(body);
+
+    const grill = new THREE.Mesh(new THREE.BoxGeometry(2,0.6,0.1),
+        new THREE.MeshStandardMaterial({ color:0x222222, roughness:0.8 }));
+    grill.position.set(0,0,0.76); ag.add(grill);
+
+    const flap = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.15,0.4),
+        new THREE.MeshStandardMaterial({ color:0xdddddd }));
+    flap.position.set(0,-0.5,0.6); flap.rotation.x = Math.PI/6; ag.add(flap);
+
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.3,0.15),
+        new THREE.MeshBasicMaterial({ color:0x00ff88 }));
+    screen.position.set(0.9,-0.3,0.76); ag.add(screen);
+
+    ag.position.set(5, 5.5, 3);
+    scene.add(ag);
+
+    const dropMat = new THREE.MeshBasicMaterial({ color:0x00d4ff });
+    for (let i = 0; i < 15; i++) {
+        const drop = new THREE.Mesh(new THREE.SphereGeometry(0.04,8,8), dropMat);
+        drop.position.set(5,4.8,3.5); drop.visible = false;
+        drop.userData = { active:false, speed:0.05+Math.random()*0.05 };
+        scene.add(drop);
+        acDrops.push(drop);
+    }
+}
+
+// =============================================
+//  WATER PARTICLES (from nozzle to plant)
+// =============================================
+function createWaterParticles() {
+    const mat = new THREE.MeshStandardMaterial({
+        color:0x00aaff, transparent:true, opacity:0.8,
+        emissive:0x0088cc, emissiveIntensity:0.3
+    });
+    for (let i = 0; i < 60; i++) {
+        const p = new THREE.Mesh(new THREE.SphereGeometry(0.025,8,8), mat.clone());
+        p.visible = false;
+        p.userData = { active:false, speed:0, vx:0, vz:0 };
+        waterParticles.push(p);
+        scene.add(p);
+    }
+}
+
+// =============================================
+//  ORBIT CONTROLS
+// =============================================
+function setupControls() {
+    let dragging = false, prev = {x:0,y:0};
+    let theta = Math.PI/4, phi = Math.PI/4, radius = 15;
+
+    function update() {
+        camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
+        camera.position.y = radius * Math.cos(phi);
+        camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
+        camera.lookAt(0,0.5,0);
+    }
+
+    document.addEventListener('mousedown', e=>{ dragging=true; prev={x:e.clientX,y:e.clientY}; });
+    document.addEventListener('mousemove', e=>{
+        if(!dragging)return;
+        theta -= (e.clientX-prev.x)*0.01;
+        phi   -= (e.clientY-prev.y)*0.01;
+        phi = Math.max(0.1, Math.min(Math.PI-0.1, phi));
+        update(); prev={x:e.clientX,y:e.clientY};
+    });
+    document.addEventListener('mouseup', ()=>{ dragging=false; });
+    document.addEventListener('wheel', e=>{
+        radius = Math.max(5, Math.min(30, radius+e.deltaY*0.01)); update();
+    });
+    document.addEventListener('touchstart', e=>{ dragging=true; prev={x:e.touches[0].clientX,y:e.touches[0].clientY}; });
+    document.addEventListener('touchmove', e=>{
+        if(!dragging)return;
+        theta -= (e.touches[0].clientX-prev.x)*0.01;
+        phi   -= (e.touches[0].clientY-prev.y)*0.01;
+        phi = Math.max(0.1, Math.min(Math.PI-0.1, phi));
+        update(); prev={x:e.touches[0].clientX,y:e.touches[0].clientY};
+    });
+    document.addEventListener('touchend', ()=>{ dragging=false; });
+    update();
+}
+
+// =============================================
+//  EVENT LISTENERS
+// =============================================
+function setupEventListeners() {
+    const autoBtn   = document.getElementById('autoBtn');
+    const manualBtn = document.getElementById('manualBtn');
+    const manualPanel  = document.getElementById('manualPanel');
+    const legendPanel  = document.getElementById('legendPanel');
+    const infoCards    = document.querySelector('.info-cards');
+
+    function setAuto() {
+        autoMode = true;
+        autoBtn.style.background   = 'linear-gradient(135deg,#00ff88,#00cc6a)';
+        autoBtn.style.color        = '#0a1628';
+        manualBtn.style.background = 'rgba(255,255,255,0.1)';
+        manualBtn.style.color      = '#fff';
+        manualPanel.classList.remove('visible');
+        if(legendPanel)  legendPanel.style.display = '';
+        if(infoCards)    infoCards.style.display   = '';
+    }
+
+    function setManual() {
+        autoMode = false;
+        manualBtn.style.background = 'linear-gradient(135deg,#00d4ff,#0099cc)';
+        manualBtn.style.color      = '#0a1628';
+        autoBtn.style.background   = 'rgba(255,255,255,0.1)';
+        autoBtn.style.color        = '#fff';
+        manualPanel.classList.add('visible');
+        if(legendPanel)  legendPanel.style.display = 'none';
+        if(infoCards)    infoCards.style.display   = 'none';
+    }
+
+    autoBtn.addEventListener('click',   setAuto);
+    manualBtn.addEventListener('click', setManual);
+
+    // Sliders for manual mode — يضبطون القيمة الابتدائية فقط عند السحب
+    // لما المضخة تشتغل، updateSimulation هي اللي تحدّث القيم والسلايدرات تلقائياً
+    const mSlider = document.getElementById('manualMoistureSlider');
+    const wSlider = document.getElementById('manualWaterSlider');
+
+    mSlider.addEventListener('input', () => {
+        if (!autoMode) {
+            moisture = parseFloat(mSlider.value);
+            document.getElementById('manualMoistureVal').textContent = Math.round(moisture) + '%';
+        }
+    });
+    wSlider.addEventListener('input', () => {
+        if (!autoMode) {
+            waterLevel = parseFloat(wSlider.value);
+            document.getElementById('manualWaterVal').textContent = Math.round(waterLevel) + '%';
+        }
+    });
+
+    document.getElementById('thresholdInput').addEventListener('change', e => {
+        threshold = parseInt(e.target.value) || 35;
+        document.getElementById('thresholdDisplay').textContent = threshold;
+    });
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+}
+
+// =============================================
+//  SIMULATION LOGIC
+// =============================================
+function updateSimulation() {
+    if (autoMode) {
+        // تغيير تدريجي واقعي
+        moisture += (Math.random() - 0.52) * 1.5;   // ينحدر ببطء
+        moisture  = Math.max(0, Math.min(100, moisture));
+        waterLevel += (Math.random() - 0.5) * 0.15;
+        waterLevel  = Math.max(0, Math.min(100, waterLevel));
+    }
+    // في الوضع اليدوي القيم تأتي من السلايدرات فقط — لا تتغير هنا
+
+    // ========== منطق الليدات والمضخة ==========
+    const needsWater = moisture  < threshold;
+    const tankHasWater = waterLevel > 20;
+
+    if (needsWater && tankHasWater) {
+        // تربة جافة + خزان ممتلئ → ضخ ماء + ليد أخضر
+        pumpRunning = true;
+        setLED(greenLedObj, true);
+        setLED(redLedObj,   false);
+        document.getElementById('greenLedDot').className = 'led-dot green-on';
+        document.getElementById('redLedDot').className   = 'led-dot';
+        document.getElementById('greenLedStatus').textContent = 'مضاء';
+        document.getElementById('greenLedStatus').style.color = '#00ff88';
+        document.getElementById('redLedStatus').textContent   = 'مطفأ';
+        document.getElementById('redLedStatus').style.color   = '#8899aa';
+        document.getElementById('systemStateBox').textContent =
+            '🟢 التربة جافة والخزان ممتلئ — جاري الري';
+        document.getElementById('systemStateBox').style.color = '#00ff88';
+
+    } else if (needsWater && !tankHasWater) {
+        // تربة جافة + خزان فارغ → لا ضخ + ليد أحمر
+        pumpRunning = false;
+        setLED(greenLedObj, false);
+        setLED(redLedObj,   true);
+        document.getElementById('greenLedDot').className = 'led-dot';
+        document.getElementById('redLedDot').className   = 'led-dot red-on';
+        document.getElementById('greenLedStatus').textContent = 'مطفأ';
+        document.getElementById('greenLedStatus').style.color = '#8899aa';
+        document.getElementById('redLedStatus').textContent   = 'مضاء';
+        document.getElementById('redLedStatus').style.color   = '#ff4444';
+        document.getElementById('systemStateBox').textContent =
+            '🔴 التربة جافة لكن الخزان فارغ — يرجى ملء الخزان!';
+        document.getElementById('systemStateBox').style.color = '#ff6b6b';
+
+    } else {
+        // التربة رطبة → لا حاجة للري — كلا الليدين مطفأين
+        pumpRunning = false;
+        setLED(greenLedObj, false);
+        setLED(redLedObj,   false);
+        document.getElementById('greenLedDot').className = 'led-dot';
+        document.getElementById('redLedDot').className   = 'led-dot';
+        document.getElementById('greenLedStatus').textContent = 'مطفأ';
+        document.getElementById('greenLedStatus').style.color = '#8899aa';
+        document.getElementById('redLedStatus').textContent   = 'مطفأ';
+        document.getElementById('redLedStatus').style.color   = '#8899aa';
+        document.getElementById('systemStateBox').textContent =
+            '⚫ التربة رطبة — لا حاجة للري';
+        document.getElementById('systemStateBox').style.color = '#aabbcc';
+    }
+
+    // ضخ يستهلك ماء الخزان ويرفع رطوبة التربة — في كلا الوضعين
+    if (pumpRunning) {
+        waterLevel -= 0.08;
+        moisture   += 0.04;
+        waterLevel  = Math.max(0, waterLevel);
+        moisture    = Math.min(100, moisture);
+
+        // في الوضع اليدوي: حدّث السلايدرات لتعكس القيم المتغيرة بسبب الضخ
+        if (!autoMode) {
+            const mSl = document.getElementById('manualMoistureSlider');
+            const wSl = document.getElementById('manualWaterSlider');
+            if (mSl) { mSl.value = moisture;   document.getElementById('manualMoistureVal').textContent = Math.round(moisture)   + '%'; }
+            if (wSl) { wSl.value = waterLevel; document.getElementById('manualWaterVal').textContent   = Math.round(waterLevel)  + '%'; }
+        }
+    }
+
+    // تحديث UI
+    document.getElementById('moistureValue').textContent = Math.round(moisture) + '%';
+    document.getElementById('moistureBar').style.width   = moisture + '%';
+    document.getElementById('waterValue').textContent    = Math.round(waterLevel) + '%';
+    document.getElementById('waterBar').style.width      = waterLevel + '%';
+
+    document.getElementById('pumpStatus').textContent = pumpRunning ? 'تعمل' : 'متوقفة';
+    document.getElementById('pumpStatus').style.color = pumpRunning ? '#00ff88' : '#ff6b6b';
+    document.getElementById('pumpIcon').classList.toggle('active', pumpRunning);
+
+    document.getElementById('systemTime').textContent = new Date().toLocaleTimeString('ar-EG');
+}
+
+function setLED(ledGroup, on) {
+    if (!ledGroup) return;
+    const intensity = on ? 1.0 : 0.1;
+    ledGroup.children.forEach(c => {
+        if (c.material && c.material.emissiveIntensity !== undefined) {
+            c.material.emissiveIntensity = intensity;
+            c.material.opacity = on ? 0.95 : 0.4;
+        }
+    });
+}
+
+// =============================================
+//  AC DROPS — تملأ الخزان
+// =============================================
+function updateACDrops() {
+    const targetY = 0.5 + (waterLevel / 100) * 1.5;
+    acDrops.forEach(drop => {
+        if (!drop.userData.active) {
+            if (Math.random() > 0.96) {
+                drop.userData.active = true; drop.visible = true;
+                drop.position.set(5+(Math.random()-0.5)*0.3, 4.8, 3+(Math.random()-0.5)*0.3);
+                drop.userData.speed = 0.06+Math.random()*0.04;
+            }
+        } else {
+            drop.position.y -= drop.userData.speed;
+            if (drop.position.y <= targetY) {
+                drop.userData.active = false; drop.visible = false;
+                if (waterLevel < 100 && autoMode) waterLevel = Math.min(100, waterLevel + 0.04);
+            }
+        }
+    });
+}
+
+// =============================================
+//  WATER PARTICLES — من رأس الرش إلى الزريعة
+// =============================================
+function updateWaterParticles() {
+    waterParticles.forEach(p => {
+        if (p.userData.active) {
+            p.position.y -= p.userData.speed;
+            p.position.x += p.userData.vx;
+            p.position.z += p.userData.vz;
+            if (p.position.y < 0.6) { p.userData.active = false; p.visible = false; }
+        }
+    });
+    if (pumpRunning) {
+        waterParticles.forEach(p => {
+            if (!p.userData.active) {
+                p.visible = true; p.userData.active = true;
+                p.userData.speed = 0.04+Math.random()*0.04;
+                p.userData.vx = (Math.random()-0.5)*0.02;
+                p.userData.vz = (Math.random()-0.5)*0.02;
+                // ينزل من رأس الرش فوق الزريعة
+                p.position.set(-1+(Math.random()-0.5)*0.2, 1.05, 3.8+(Math.random()-0.5)*0.2);
+                return;
+            }
+        });
+    }
+}
+
+// =============================================
+//  TANK WATER LEVEL
+// =============================================
+function updateTankWater() {
+    const tw = scene.getObjectByName('tankWater');
+    if (!tw) return;
+    const t = Math.max(0.01, waterLevel/100);
+    tw.scale.y = t;
+    tw.position.y = -1 + t*1.5;
+}
+
+// =============================================
+//  ANIMATE
+// =============================================
+function animate() {
+    requestAnimationFrame(animate);
+    const time = clock.getElapsedTime();
+
+    if (pumpObj) {
+        const ring = pumpObj.getObjectByName('motorRing');
+        if (ring) ring.rotation.z = pumpRunning ? time * 5 : ring.rotation.z;
+    }
+
+    const needsWater   = moisture   < threshold;
+    const tankEmpty    = waterLevel <= 20;
+
+    if (greenLedObj) {
+        const gi = needsWater && !tankEmpty
+            ? 0.5 + Math.sin(time*10)*0.5
+            : 0.1;
+        greenLedObj.children.forEach(c => { if(c.material?.emissiveIntensity!==undefined) c.material.emissiveIntensity = gi; });
+    }
+    if (redLedObj) {
+        const ri = needsWater && tankEmpty
+            ? 0.5 + Math.sin(time*5)*0.4
+            : 0.05;
+        redLedObj.children.forEach(c => { if(c.material?.emissiveIntensity!==undefined) c.material.emissiveIntensity = ri; });
+    }
+
+    updateSimulation();
+    updateWaterParticles();
+    updateACDrops();
+    updateTankWater();
+
+    renderer.render(scene, camera);
+}
+
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
